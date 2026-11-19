@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Document AI</title>
+    <!-- 1. Tailwind with Typography Plugin for beautiful automatic styling -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- 2. Marked.js for instantly parsing raw Markdown into HTML -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-slate-100 p-8 font-sans">
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+        <h1 class="text-3xl font-bold mb-8 text-slate-800">AI Document Analyzer</h1>
+
+        <!-- Section 1: Upload & Summarize -->
+        <div class="mb-8 p-6 border rounded-lg bg-slate-50 border-slate-200">
+            <h2 class="text-xl font-semibold mb-4 text-slate-700">1. Upload & Summarize</h2>
+            <input type="file" id="pdfFile" accept="application/pdf" class="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+            <button onclick="summarizeDoc()" class="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium shadow-sm">Generate Executive Summary</button>
+            <div id="summaryResult" class="mt-6 hidden bg-white p-6 border rounded-md shadow-sm"></div>
+        </div>
+
+        <!-- Section 2: Document Q&A -->
+        <div class="p-6 border rounded-lg bg-slate-50 border-slate-200">
+            <h2 class="text-xl font-semibold mb-4 text-slate-700">2. Ask the AI</h2>
+            <input type="text" id="question" placeholder="Ask a specific question about the document's contents..." class="w-full p-3 border border-slate-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <button onclick="askQuestion()" class="bg-emerald-600 text-white px-5 py-2 rounded-md hover:bg-emerald-700 transition font-medium shadow-sm">Submit Question</button>
+            <div id="answerResult" class="mt-6 hidden bg-white p-6 border rounded-md shadow-sm"></div>
+        </div>
+    </div>
+
+    <script>
+        let uploadedFilename = "";
+
+        async function summarizeDoc() {
+            const fileInput = document.getElementById('pdfFile');
+            const resultDiv = document.getElementById('summaryResult');
+
+            if (fileInput.files.length === 0) {
+                alert("Please select a PDF file first.");
+                return;
+            }
+
+            resultDiv.innerHTML = "<span class='text-blue-600 font-medium animate-pulse'>Reading document and generating summary...</span>";
+            resultDiv.classList.remove("hidden");
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                const response = await fetch("http://127.0.0.1:8001/summarize/", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    uploadedFilename = data.filename;
+                    let summaryText = Array.isArray(data.summary) ? data.summary[0].text : data.summary;
+                    
+                    // 3. Render using marked.parse() wrapped in Tailwind's 'prose' class
+                    resultDiv.innerHTML = `<div class="prose prose-slate max-w-none prose-h3:text-blue-800 prose-hr:my-6 prose-li:my-0">
+                        ${marked.parse(summaryText)}
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<p class='text-red-600 font-medium'>Error: ${data.detail}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class='text-red-600 font-medium'>Backend connection failed. Is the Uvicorn server running?</p>`;
+            }
+        }
+
+        async function askQuestion() {
+            const questionInput = document.getElementById('question').value;
+            const resultDiv = document.getElementById('answerResult');
+
+            if (!uploadedFilename) {
+                alert("Please upload and summarize a document first so the AI has context.");
+                return;
+            }
+            if (!questionInput) {
+                alert("Please enter a question.");
+                return;
+            }
+
+            resultDiv.innerHTML = "<span class='text-emerald-600 font-medium animate-pulse'>Searching document context and generating answer...</span>";
+            resultDiv.classList.remove("hidden");
+
+            const formData = new FormData();
+            formData.append("filename", uploadedFilename);
+            formData.append("question", questionInput);
+
+            try {
+                const response = await fetch("http://127.0.0.1:8001/ask/", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    let answerText = Array.isArray(data.answer) ? data.answer[0].text : data.answer;
+                    
+                    resultDiv.innerHTML = `<div class="prose prose-slate max-w-none prose-h3:text-emerald-800 prose-li:my-0">
+                        ${marked.parse(answerText)}
+                        <p class='text-xs text-slate-400 mt-6 font-sans border-t pt-2'>Sources referenced: ${data.chunks_referenced}</p>
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<p class='text-red-600 font-medium'>Error: ${data.detail}</p>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class='text-red-600 font-medium'>Backend connection failed.</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

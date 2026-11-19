@@ -1,0 +1,19 @@
+# Secrets & API Keys
+.env
+
+# Python Virtual Environment
+venv/
+.venv/
+
+# Python Cache Files
+__pycache__/
+*.pyc
+*.pyo
+
+# Uploaded Personal Documents
+temp_docs/
+
+# OS & Editor Settings
+.DS_Store
+Thumbs.db
+.vscode/
